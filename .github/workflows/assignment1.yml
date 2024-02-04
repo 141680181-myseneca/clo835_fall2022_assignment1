@@ -21,6 +21,7 @@ jobs:
       # Install Docker on Amazon Linux EC2
       - name: Install Docker
         run: |
+          sudo dnf install yum
           sudo yum update -y
           sudo amazon-linux-extras install docker -y
           sudo service docker start
