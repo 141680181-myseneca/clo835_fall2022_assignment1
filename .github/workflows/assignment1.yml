@@ -16,10 +16,12 @@ jobs:
       - name: Build and Push Docker images to ECR
         uses: aws-actions/amazon-ecr-login@v1
         with:
-          registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          registry: 544378344870.dkr.ecr.us-east-1.amazonaws.com
+      #    registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
       # Log into EC2 instance
       - name: Log into EC2 instance
         run: ssh ec2-user@${{ secrets.EC2_PUBLIC_IP }} -i ${{ secrets.SSH_PRIVATE_KEY }}
