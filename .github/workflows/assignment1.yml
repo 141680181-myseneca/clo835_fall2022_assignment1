@@ -21,7 +21,7 @@ jobs:
       # Install Docker on Amazon Linux EC2
       - name: Install Docker
         run: |
-          sudo rpm -q yum
+          sudo rpm -ivh --force https://mirror.centos.org/centos/7/os/x86_64/Packages/yum-3.4.3-167.amzn2.noarch.rpm
           sudo yum makecache
           sudo yum update -y
           sudo amazon-linux-extras install docker -y
