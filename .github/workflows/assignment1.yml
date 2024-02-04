@@ -1,48 +1,102 @@
-name: Build and Deploy
+name: Build, Push, and Deploy
 
 on:
   push:
-    branches:
-      - master
+    branches: [ master ]
 
 jobs:
-  build-and-deploy:
+  build-push-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Build Docker images and push to Amazon ECR using GitHub Actions
-      - name: Build and Push Docker images to ECR
-        uses: aws-actions/amazon-ecr-login@v1
-        with:
-          registry: 544378344870.dkr.ecr.us-east-1.amazonaws.com
-      #    registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-1
-      # Log into EC2 instance
-      - name: Log into EC2 instance
-        run: ssh ec2-user@${{ secrets.EC2_PUBLIC_IP }} -i ${{ secrets.SSH_PRIVATE_KEY }}
+      # Install required tools (e.g., aws-cli) for logging into AWS EC2
+      - name: Install AWS CLI
+        run: sudo apt-get install -y awscli
 
       # Log into AWS EC2
       - name: Login to AWS EC2
         run: aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }} && aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }} && aws configure set default.region ${{ secrets.AWS_REGION }}
-
-      # Pull application and MySQL images
-      - name: Pull Application and MySQL images
+      # Install Docker on Amazon Linux EC2
+      - name: Install Docker
         run: |
-          docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my_app
-          docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my_db
+          sudo yum update -y
+          sudo amazon-linux-extras install docker -y
+          sudo service docker start
+          sudo usermod -a -G docker $USER
 
-      # Create MySQL container
-      - name: Create MySQL Container
-        run: docker run -d --name my_db ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my_db
-
-      # Run application image with different background colors (optional)
-      - name: Run Application with different background colors
+      # Configure network to communicate with MySQL container
+      - name: Configure Network
         run: |
-          docker run -d -e APP_COLOR=blue ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my_app
-          docker run -d -e APP_COLOR=green ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my_app
-          docker run -d -e APP_COLOR=pink ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my_app
+          sudo yum install -y https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
+          sudo yum install -y mysql-community-client
+          rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
+          sudo dnf install mariadb105-server -y
+          sudo systemctl start mariadb
+          mysql -u ${{ secrets.DB_USER }} -p${{ secrets.DB_PASSWORD }} -h ${{ secrets.DB_HOST }} -P 3306
+      # Install MySQL Client and run application locally
+      - name: Install MySQL Client and Run Application Locally
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y mysql-client
+          pip3 install -r requirements.txt
+          sudo python3 app.py
+
+      # Building MySQL Docker Image
+      - name: Building MySQL Docker Image
+        run: docker build -t my_db -f Dockerfile_mysql .
+
+      # Building Application Docker Image
+      - name: Building Application Docker Image
+        run: docker build -t my_app -f Dockerfile .
+
+      # Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+              registry: 544378344870.dkr.ecr.us-east-1.amazonaws.com
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_REGION: us-east-1
+
+      # Tag MySQL Docker Image
+      - name: Tag MySQL Docker Image
+        run: docker tag my_db ${{ steps.login-ecr.outputs.registry }}/clo835-week4:mysql
+
+      # Tag Application Docker Image
+      - name: Tag Application Docker Image
+        run: docker tag my_app ${{ steps.login-ecr.outputs.registry }}/clo835-week4:app
+
+      # Push MySQL Docker Image to ECR
+      - name: Push MySQL Docker Image to ECR
+        run: docker push ${{ steps.login-ecr.outputs.registry }}/clo835-week4:mysql
+
+      # Push Application Docker Image to ECR
+      - name: Push Application Docker Image to ECR
+        run: docker push ${{ steps.login-ecr.outputs.registry }}/clo835-week4:app
+
+      # Pull application and MySQL images from Amazon ECR
+      - name: Pull MySQL Docker Image from ECR
+        run: docker pull ${{ steps.login-ecr.outputs.registry }}/clo835-week4:mysql
+
+      - name: Pull Application Docker Image from ECR
+        run: docker pull ${{ steps.login-ecr.outputs.registry }}/clo835-week4:app
+
+      # Create MySQL container on EC2
+      - name: Create MySQL Container on EC2
+        run: docker run -d -e MYSQL_ROOT_PASSWORD=pw --name my_db mysql
+# Generate and run 3 containers with dynamic configurations
+      - name: Generate and Run Containers
+        run: |
+          for color in blue green pink; do
+            export APP_COLOR=$color
+            docker run -d -p 8080:8080 -e DBHOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' my_db) -e DBPORT=$((${{ runner.os }}_container_count + 3306)) -e DBUSER=root -e DATABASE=employees -e DBPWD=pw -e APP_COLOR=$APP_COLOR my_app
+          done
+
+env:
+  ECR_REPO_NAME: clo835-week4
+      # Additional steps to deploy application on EC2 can be added here
