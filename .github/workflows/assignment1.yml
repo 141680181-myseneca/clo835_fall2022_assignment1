@@ -16,27 +16,27 @@ jobs:
         run: sudo apt-get install -y awscli
 
       # Log into AWS EC2
-      - name: Login to AWS EC2
-        run: aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }} && aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }} && aws configure set default.region ${{ secrets.AWS_REGION }}
+  #    - name: Login to AWS EC2
+ #       run: aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }} && aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }} && aws configure set default.region ${{ secrets.AWS_REGION }}
       # Install Docker on Amazon Linux EC2
-      - name: Install Docker
-        run: |
-          sudo rpm -ivh --force https://mirror.centos.org/centos/7/os/x86_64/Packages/yum-3.4.3-167.amzn2.noarch.rpm
-          sudo yum makecache
-          sudo yum update -y
-          sudo amazon-linux-extras install docker -y
-          sudo service docker start
-          sudo usermod -a -G docker $USER
+#      - name: Install Docker
+#        run: |
+#          sudo rpm -ivh --force https://mirror.centos.org/centos/7/os/x86_64/Packages/yum-3.4.3-167.amzn2.noarch.rpm
+#          sudo yum makecache
+#          sudo yum update -y
+#          sudo amazon-linux-extras install docker -y
+#          sudo service docker start
+#          sudo usermod -a -G docker $USER
 
       # Configure network to communicate with MySQL container
-      - name: Configure Network
-        run: |
-          sudo yum install -y https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
-          sudo yum install -y mysql-community-client
-          rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
-          sudo dnf install mariadb105-server -y
-          sudo systemctl start mariadb
-          mysql -u ${{ secrets.DB_USER }} -p${{ secrets.DB_PASSWORD }} -h ${{ secrets.DB_HOST }} -P 3306
+ #     - name: Configure Network
+#        run: |
+#          sudo yum install -y https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
+#          sudo yum install -y mysql-community-client
+#          rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
+#          sudo dnf install mariadb105-server -y
+#          sudo systemctl start mariadb
+#          mysql -u ${{ secrets.DB_USER }} -p${{ secrets.DB_PASSWORD }} -h ${{ secrets.DB_HOST }} -P 3306
       # Install MySQL Client and run application locally
       - name: Install MySQL Client and Run Application Locally
         run: |
@@ -82,22 +82,22 @@ jobs:
         run: docker push ${{ steps.login-ecr.outputs.registry }}/clo835-week4:app
 
       # Pull application and MySQL images from Amazon ECR
-      - name: Pull MySQL Docker Image from ECR
-        run: docker pull ${{ steps.login-ecr.outputs.registry }}/clo835-week4:mysql
+#      - name: Pull MySQL Docker Image from ECR
+#        run: docker pull ${{ steps.login-ecr.outputs.registry }}/clo835-week4:mysql
 
-      - name: Pull Application Docker Image from ECR
-        run: docker pull ${{ steps.login-ecr.outputs.registry }}/clo835-week4:app
+#      - name: Pull Application Docker Image from ECR
+#        run: docker pull ${{ steps.login-ecr.outputs.registry }}/clo835-week4:app
 
       # Create MySQL container on EC2
-      - name: Create MySQL Container on EC2
-        run: docker run -d -e MYSQL_ROOT_PASSWORD=pw --name my_db mysql
+ #     - name: Create MySQL Container on EC2
+ #       run: docker run -d -e MYSQL_ROOT_PASSWORD=pw --name my_db mysql
 # Generate and run 3 containers with dynamic configurations
-      - name: Generate and Run Containers
-        run: |
-          for color in blue green pink; do
-            export APP_COLOR=$color
-            docker run -d -p 8080:8080 -e DBHOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' my_db) -e DBPORT=$((${{ runner.os }}_container_count + 3306)) -e DBUSER=root -e DATABASE=employees -e DBPWD=pw -e APP_COLOR=$APP_COLOR my_app
-          done
+#      - name: Generate and Run Containers
+#        run: |
+#          for color in blue green pink; do
+#            export APP_COLOR=$color
+#            docker run -d -p 8080:8080 -e DBHOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' my_db) -e DBPORT=$((${{ runner.os }}_container_count + 3306)) -e DBUSER=root -e DATABASE=employees -e DBPWD=pw -e APP_COLOR=$APP_COLOR my_app
+#          done
 
 env:
   ECR_REPO_NAME: clo835-week4
