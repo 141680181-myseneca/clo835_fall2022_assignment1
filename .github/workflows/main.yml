@@ -25,7 +25,7 @@ jobs:
         run: terraform init
 
       - name: Plan Terraform changes
-        run: terraform plan -out=tfplan
+        run: terraform plan 
 
       - name: Apply Terraform changes
         id: terraform-apply
