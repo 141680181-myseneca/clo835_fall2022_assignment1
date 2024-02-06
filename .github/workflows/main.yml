@@ -22,12 +22,15 @@ jobs:
           terraform_version: 1.0.0  
 
       - name: Initialize Terraform
+        working-directory: ./terraform_code/dev/instance/
         run: terraform init
 
       - name: Plan Terraform changes
+        working-directory: ./terraform_code/dev/instance/
         run: terraform plan 
 
       - name: Apply Terraform changes
+        working-directory: ./terraform_code/dev/instance/
         id: terraform-apply
         run: |
           terraform apply --auto-approve
