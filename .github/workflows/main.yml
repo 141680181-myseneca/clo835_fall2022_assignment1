@@ -13,15 +13,15 @@ jobs:
           terraform_version: 1.0.0  
 
       - name: Initialize Terraform
-        working-directory: ../../terraform_code/dev/instances/     
+        working-directory: ./terraform_code/dev/instances/     
         run: terraform init
 
       - name: Plan Terraform changes
-        working-directory: ../../terraform_code/dev/instances/
+        working-directory: ./terraform_code/dev/instances/
         run: terraform plan 
 
       - name: Apply Terraform changes
-        working-directory: ../../terraform_code/dev/instances/
+        working-directory: ./terraform_code/dev/instances/
         id: terraform-apply
         run: |
           terraform apply --auto-approve
@@ -29,7 +29,7 @@ jobs:
           echo "::set-output name=eip::$(terraform output -json eip)"
           echo "::set-output name=private_ip::$(terraform output -json private_ip)
         env:
-          TF_CLI_ARGS: "-auto-approve"  # Automatically approve changes without prompting
+          TF_CLI_ARGS: "--auto-approve"  # Automatically approve changes without prompting
 
   build-push-deploy:
     runs-on: ubuntu-latest
