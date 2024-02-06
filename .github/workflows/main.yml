@@ -1,9 +1,9 @@
-
+t
 name: Build, Push, and Deploy
 
 on:
   push:
-    branches: [developer]
+    branches: [development]
 
 jobs:
   terraform:
