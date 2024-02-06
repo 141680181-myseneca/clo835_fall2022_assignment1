@@ -1,9 +1,13 @@
 name: Build, Push, and Deploy
 
 on:
-  push:
-    branches: [developer]
-
+ # push:
+ #   branches: [developer]
+   workflow_dispatch:
+    inputs:
+      some_input:
+        description: 'Description of the input'
+        required: true
 jobs:
   terraform:
     runs-on: ubuntu-latest
