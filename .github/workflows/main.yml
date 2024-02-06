@@ -5,8 +5,12 @@ on:
  #   branches: [developer]
    workflow_dispatch:
     inputs:
-      some_input:
-        description: 'Description of the input'
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+      region:
+        description: 'AWS region'
         required: true
 jobs:
   terraform:
