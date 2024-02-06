@@ -1,1 +1,107 @@
 
+name: Build, Push, and Deploy
+
+on:
+  push:
+    branches: [developer]
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:   
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.0.0  
+
+      - name: Initialize Terraform
+        run: terraform init
+
+      - name: Plan Terraform changes
+        run: terraform plan -out=tfplan
+
+      - name: Apply Terraform changes
+        id: terraform-apply
+        run: |
+          terraform apply --auto-approve
+          # Capture the EC2 public IP address and set it as an output
+          echo "::set-output name=eip::$(terraform output -json eip)"
+          echo "::set-output name=private_ip::$(terraform output -json private_ip)
+        env:
+          TF_CLI_ARGS: "-auto-approve"  # Automatically approve changes without prompting
+
+  build-push-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install AWS CLI
+        run: sudo apt-get install -y awscli 
+
+      - name: Configure Network
+        run: docker network create -d bridge --subnet 192.168.0.1/24 --gateway 192.168.0.1 new-network
+
+      - name: Building MySQL Docker Image
+        run: docker build -t my_db_v2 -f Dockerfile_mysql .
+
+      - name: Building Application Docker Image
+        run: docker build -t my_app_v2 -f Dockerfile .
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registry: 544378344870.dkr.ecr.us-east-1.amazonaws.com
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+
+      - name: Tag MySQL Docker Image
+        run: docker tag my_db_v2 ${{ steps.login-ecr.outputs.registry }}/clo835-week4:mysql_v2
+
+      - name: Tag Application Docker Image
+        run: docker tag my_app_v2 ${{ steps.login-ecr.outputs.registry }}/clo835-week4:app_v2
+
+      - name: Push MySQL Docker Image to ECR
+        run: docker push ${{ steps.login-ecr.outputs.registry }}/clo835-week4:mysql_v2
+
+      - name: Push Application Docker Image to ECR
+        run: docker push ${{ steps.login-ecr.outputs.registry }}/clo835-week4:app_v2
+
+      - name: Display EC2 Public IP
+        run:  |
+          ip_for_ec2=$(terraform output -json eip)   
+          ip_for_ec2_private=$(terraform output -json private_ip)
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }} && aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }} && aws configure set default.region ${{ secrets.AWS_REGION }}
+          ssh ec2-user@$ip_for_ec2 -i ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Install Docker
+        run: |
+          sudo yum update -y
+          sudo yum install docker.io -y
+          sudo service docker start
+          sudo usermod -a -G docker $USER
+
+      - name: Pull Application and MySQL images
+        run: |
+          docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/app_v2
+          docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/mysql_v2
+
+      - name: Create MySQL Container
+        run: docker run -d --name my_db --network new-network ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/mysql_v2
+
+      - name: Generate and Run Containers
+        run: |
+          port=8000
+          DBPORT=3306
+          DBHOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' my_db_v2)
+          DBUSER=root
+          DATABASE=employees
+          DBPWD=pw
+          for color in blue green lime; do
+            export APP_COLOR=$color
+            docker run -d -p $port:8080 --network new-network --name $APP_COLOR -e DBHOST=$DBHOST -e DBPORT=$DBPORT -e DBUSER=$DBUSER -e DBPWD=$DBPWD -e APP_COLOR=blue 544378344870.dkr.ecr.us-east-1.amazonaws.com/clo835-week4:app_v2
+            port=$((port + 1))
+          done
