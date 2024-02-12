@@ -13,36 +13,32 @@ jobs:
         uses: hashicorp/setup-terraform@v1
         with:
           terraform_version: 1.0.0
-      - name: Initialize Terraform
+      - name: Initialize Terraform (set environment variables)
         working-directory: terraform_code/dev/instances
         env:
-          AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
-          AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1  # Ensure correct region
         run: terraform init
       - name: Plan Terraform changes
         working-directory: terraform_code/dev/instances
-        env:
-          AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
-          AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-          AWS_REGION: us-east-1
         run: terraform plan
-      - name: Apply Terraform changes
+      - name: Apply Terraform changes (optional auto-approval)
         working-directory: terraform_code/dev/instances
         env:
-          AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
-          AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: us-east-1
-          TF_CLI_ARGS: "--auto-approve"
+          TF_CLI_ARGS: "--auto-approve"  # Add this line for auto-approval (optional)
         id: terraform-apply
+        run: terraform apply
+      - name: Display EC2 Public IP (example)
         run: |
-          terraform apply --auto-approve
-          echo "::set-output name=eip::$(terraform output -json eip)"
-          echo "::set-output name=private_ip::$(terraform output -json private_ip)"
-      - name: Display EC2 Public IP
-        run:  |
           ip_for_ec2=$(terraform output -json eip)
           ip_for_ec2_private=$(terraform output -json private_ip)
+          # Use these outputs in subsequent steps or workflows
+        # Add other steps for building, pushing, and deploying your application code
+
   build-push-deploy:
     runs-on: ubuntu-latest
     steps:
