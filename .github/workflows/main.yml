@@ -3,32 +3,39 @@ name: Build, Push, and Deploy
 on:
   push:
     branches: [master]
+
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    steps:   
+    steps:
       - uses: actions/checkout@v3
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
         with:
-          terraform_version: 1.0.0  
+          terraform_version: 1.0.0
       - name: Initialize Terraform
-        working-directory: terraform_code/dev/instances   
+        working-directory: terraform_code/dev/instances
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
         run: terraform init
       - name: Plan Terraform changes
         working-directory: terraform_code/dev/instances
-        run: terraform plan 
+        run: terraform plan
       - name: Apply Terraform changes
         working-directory: terraform_code/dev/instances
         id: terraform-apply
         run: |
           terraform apply --auto-approve
-          # Capture the EC2 public IP address and set it as an output
           echo "::set-output name=eip::$(terraform output -json eip)"
-          echo "::set-output name=private_ip::$(terraform output -json private_ip)
+          echo "::set-output name=private_ip::$(terraform output -json private_ip)"
         env:
-          TF_CLI_ARGS: "--auto-approve"  # Automatically approve changes without prompting
-
+          TF_CLI_ARGS: "--auto-approve"
+      - name: Display EC2 Public IP
+        run:  |
+          ip_for_ec2=$(terraform output -json eip)
+          ip_for_ec2_private=$(terraform output -json private_ip)
   build-push-deploy:
     runs-on: ubuntu-latest
     steps:
